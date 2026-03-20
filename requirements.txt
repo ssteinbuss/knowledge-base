@@ -1,4 +1,4 @@
-```yaml
+yaml
 site_name: Knowledge Base
 site_url: https://<your-org>.github.io/knowledge-base/
 repo_url: https://github.com/<your-org>/knowledge-base
