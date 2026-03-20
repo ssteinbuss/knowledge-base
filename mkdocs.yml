@@ -1,7 +1,7 @@
-yaml
+
 site_name: Knowledge Base
-site_url: https://<your-org>.github.io/knowledge-base/
-repo_url: https://github.com/<your-org>/knowledge-base
+site_url: https://ssteinbuss.github.io/knowledge-base/
+repo_url: https://github.com/ssteinbuss/knowledge-base
 repo_name: knowledge-base
 theme:
   name: material
