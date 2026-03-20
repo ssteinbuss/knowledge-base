@@ -1,7 +1,7 @@
 # Security Policy
 
 ## Reporting a Vulnerability
-Please report security issues responsibly to **security@your-org.example**.
+Please report security issues responsibly to **security at your-org.example**.
 
 Include:
 - Affected page(s) or workflow(s)

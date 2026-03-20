@@ -14,9 +14,9 @@ This guide walks through the setup required to operate the `knowledge-base` site
 - Settings → Secrets and variables → Actions → **New repository secret**:
   - Name: `SOURCE_REPOS_PAT`
   - Value: a **read‑only** Personal Access Token with `repo` (read) scope that can access:
-    - `International-Data-Spaces-Association/IDSA-Rulebook`
-    - `International-Data-Spaces-Association/RAM5`
-    - `International-Data-Spaces-Association/members-area`
+    - `ssteinbuss/IDSA-Rulebook`
+    - `ssteinbuss/RAM5`
+    - `ssteinbuss/members-area`
 
 > Least privilege: this PAT is used **only** for checking out the source repositories.
 
