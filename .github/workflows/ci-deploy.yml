@@ -104,6 +104,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install --upgrade --no-cache-dir -r requirements.txt
 
+      # Optional but recommended diagnostics:
+      - name: Verify literate-nav is installed
+        run: |
+          pip show mkdocs-literate-nav
+          python - <<'PY'
+      import sys
+      try:
+        import mkdocs_literate_nav
+        print("mkdocs-literate-nav OK:", mkdocs_literate_nav.__version__)
+      except Exception as e:
+        print("mkdocs-literate-nav import FAILED:", e)
+        sys.exit(1)
+      PY
       - name: Assemble external content & build merged SUMMARY
         env:
           CI_EVENT_NAME: ${{ github.event_name }}
