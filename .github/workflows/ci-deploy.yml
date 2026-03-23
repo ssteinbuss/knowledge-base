@@ -24,7 +24,9 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
+
       - name: Markdownlint
         uses: DavidAnson/markdownlint-cli2-action@v15
         with:
@@ -39,12 +41,15 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
-      - name: Install lychee cache (optional)
+
+      - name: Cache lychee
         uses: actions/cache@v4
         with:
           path: .lycheecache
           key: lychee-${{ runner.os }}-${{ hashFiles('.lychee.toml') }}
+
       - name: Run lychee
         uses: lycheeverse/lychee-action@v1
         with:
@@ -64,9 +69,10 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0        # required for correct git revision dates
           persist-credentials: false
 
-      # External sources checkout (read-only) using PAT
+      # --- External sources checkout (read-only; skipped on forked PRs) ---
       - name: Checkout Rulebook
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
         uses: actions/checkout@v4
@@ -99,7 +105,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install dependencies (fresh)
         run: |
           python -m pip install --upgrade pip
           pip install --upgrade --no-cache-dir -r requirements.txt
@@ -110,17 +116,17 @@ jobs:
           python --version
           python -m pip show mkdocs mkdocs-material mkdocs-literate-nav
           python - <<'PY'
-      import sys
-      print("PYTHON:", sys.executable)
-      import mkdocs
-      print("MKDOCS:", mkdocs.__version__)
-      try:
-        import mkdocs_literate_nav
-        print("LITERATE-NAV:", mkdocs_literate_nav.__version__)
-      except Exception as e:
-        print("LITERATE-NAV IMPORT FAILED:", e)
-        sys.exit(1)
-      PY
+import sys
+print("PYTHON:", sys.executable)
+import mkdocs
+print("MKDOCS:", mkdocs.__version__)
+try:
+    import mkdocs_literate_nav
+    print("LITERATE-NAV:", mkdocs_literate_nav.__version__)
+except Exception as e:
+    print("LITERATE-NAV IMPORT FAILED:", e)
+    sys.exit(1)
+PY
 
       - name: Assemble external content & build merged SUMMARY
         env:
@@ -147,6 +153,8 @@ jobs:
     steps:
       - name: Configure Pages
         uses: actions/configure-pages@v5
+
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+        
