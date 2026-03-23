@@ -1,11 +1,11 @@
 # Home
 
-- [Home](index.md)
+* [Home](index.md)
 
 ## Knowledge
 
-- *(generated during CI — see scripts/build_summary.py)*
+* *(generated during CI — see scripts/build_summary.py)*
 
 ## About
 
-- [About](about.md)
+* [About](about.md)
