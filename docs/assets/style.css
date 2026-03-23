@@ -26,34 +26,9 @@
 }
 
 
-/* ---------- Brand color (single source of truth) ---------- */
-:root {
-  --kb-brand: #0099FF;
-  /* Regular text font */
-  --md-text-font: "Droid Sans Regular", Helvetica, Arial, Lucida, sans-serif;
 
-}
-
-/* Light scheme (default) */
-[data-md-color-scheme="default"] {
-  /* Header, tabs, top nav, some links */
-  --md-primary-fg-color: #0099FF;
-
-  /* Hover/interactive accents (buttons, hovered links, scrollbars) */
-  --md-accent-fg-color: #0099FF;
-
-  /* Content area links */
-  --md-typeset-a-color: #0099FF;
-}
-
-/* Dark scheme (slate), keep the same brand */
-[data-md-color-scheme="slate"] {
-  --md-primary-fg-color: #0099FF;
-  --md-accent-fg-color: #0099FF;
-  --md-typeset-a-color: #0099FF;
-}
-
-/* Slightly darker hover state for content links */
-.md-typeset a:hover {
-  color: #007ed6; /* optional: tweak to taste */
+:root  > * {
+  --md-primary-fg-color:        #0099FF;
+  --md-primary-fg-color--light: #0099FF;
+  --md-primary-fg-color--dark:  #0099FF;
 }
