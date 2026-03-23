@@ -2,7 +2,7 @@
 
 This public website consolidates authoritative content from multiple sources into one searchable hub:
 
-- **IDSA Rulebook** current version with some fixes → governance rules, policies, and processes  
+- **IDSA Rulebook** current version with some fixes and links → governance rules, policies, and processes  
 - **IDSA RAM 5** → reference architecture model for data spaces  
 - **Organizational Handbook** → operational guidance for members
 
