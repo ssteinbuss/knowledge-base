@@ -1,4 +1,4 @@
-/* Header logo placement (right side) */
+/* Header logo placement (right side) 
 .kb-header-logo {
   position: absolute;
   right: 0.75rem;
@@ -8,6 +8,7 @@
   height: 28px;
   opacity: 0.9;
 }
+*/
 
 /* Footer layout */
 .kb-footer-links, .kb-footer-copy {
@@ -15,4 +16,44 @@
 }
 .kb-footer-links a {
   text-decoration: none;
+}
+
+
+.md-footer,
+.md-footer .md-footer-meta {
+  font-size: 0.85rem;   /* try 0.80–0.90 based on taste */
+  line-height: 1.35;
+}
+
+
+/* ---------- Brand color (single source of truth) ---------- */
+:root {
+  --kb-brand: #0099FF;
+  /* Regular text font */
+  --md-text-font: "Droid Sans Regular", Helvetica, Arial, Lucida, sans-serif;
+
+}
+
+/* Light scheme (default) */
+[data-md-color-scheme="default"] {
+  /* Header, tabs, top nav, some links */
+  --md-primary-fg-color: var(--kb-brand);
+
+  /* Hover/interactive accents (buttons, hovered links, scrollbars) */
+  --md-accent-fg-color: var(--kb-brand);
+
+  /* Content area links */
+  --md-typeset-a-color: var(--kb-brand);
+}
+
+/* Dark scheme (slate), keep the same brand */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: var(--kb-brand);
+  --md-accent-fg-color: var(--kb-brand);
+  --md-typeset-a-color: var(--kb-brand);
+}
+
+/* Slightly darker hover state for content links */
+.md-typeset a:hover {
+  color: #007ed6; /* optional: tweak to taste */
 }

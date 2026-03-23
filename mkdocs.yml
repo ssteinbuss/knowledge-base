@@ -32,3 +32,5 @@ markdown_extensions:
   - def_list
 extra:
   generator: false
+theme:
+  favicon: assets/favicon.png
