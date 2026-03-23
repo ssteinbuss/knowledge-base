@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-Generate docs/SUMMARY.md for mkdocs-literate-nav as a pure bullet list
-(no Markdown headings), so the plugin can parse it deterministically.
+Generate docs/SUMMARY.md for mkdocs-literate-nav as a pure nested bullet list.
 
-Sections:
+Structure produced:
 * [Home](index.md)
 * Knowledge
     * Rulebook
-        * <rewritten items from Rulebook/SUMMARY.md>
+        * [Label](external/rulebook/...)
+        * *.md
     * RAM 5
-        * <rewritten items from RAM5/SUMMARY.md>
+        * [Label](external/ram5/...)
     * Organizational Handbook
-        * <rewritten items from Handbook/summary.md>
+        * [Label](external/handbook/...)
 * [About](about.md)
 """
 
@@ -34,11 +34,11 @@ TITLE_MAP = {
     "handbook": "Organizational Handbook",
 }
 
-# Match Markdown links: [label](href)
+# Match Markdown links: [label](url)
 MD_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
-# Match bullet items (leading spaces + '-' or '*' + space + content)
+# Match bullet items (leading spaces + '-' or '*' + one space + content)
 LIST_ITEM_RE = re.compile(r"^(\s*[-*]\s+)(.+?)\s*$")
-# Any asterisk (wildcard) in the token
+# Wildcard presence
 HAS_WILDCARD_RE = re.compile(r"\*")
 
 def is_external(href: str) -> bool:
@@ -59,12 +59,12 @@ def rewrite_href(href: str, src_root: Path, section_key: str) -> str:
     try:
         rel_in_source = abs_path.relative_to(src_root.resolve())
     except ValueError:
-        return href  # escapes the source root, leave as-is
+        return href  # outside source root; leave as-is
     new_path = posixpath.join("external", section_key, *rel_in_source.parts)
     return new_path + anchor
 
 def filename_to_label(path: str) -> str:
-    """Generate a readable label from a filename (with special-casing index/readme)."""
+    """Generate a readable label from a filename (special-casing index/readme)."""
     p, _ = split_anchor(path)
     stem = Path(p).stem or "Untitled"
     if stem.lower() in {"index", "readme"}:
@@ -75,47 +75,44 @@ def filename_to_label(path: str) -> str:
 
 def normalize_item_token(token: str, src_root: Path, section_key: str) -> str:
     """
-    Normalize a single list item 'token' to a proper Markdown link or wildcard path.
-    Returns the content to put after the '* ' (without leading marker).
+    Normalize one list item token to:
+      - [label](rewritten_url)          (for links or plain paths)
+      - external/<section>/path/*.md    (for wildcards)
+    Returns the content after the '* ' marker (no leading marker).
     """
-    # If it’s already a Markdown link, rewrite href and keep label
-    m = MD_LINK_RE.search(token)
+    # Already a Markdown link → rewrite URL, keep the original label
+    m = MD_LINK_RE.fullmatch(token) or MD_LINK_RE.search(token)
     if m:
         label, url = m.group(1), m.group(2)
         new_url = rewrite_href(url, src_root, section_key)
-        return f"{new_url}"
+        return f"[{label}]({new_url})"
 
-    # Wildcards (*.md or sub/*.md): rewrite prefix only
+    # Wildcards (*.md or sub/*.md) are allowed (not as links)
     if HAS_WILDCARD_RE.search(token) and not is_external(token) and not token.startswith("#"):
         prefix, anchor = split_anchor(token)
         parts = Path(prefix).parts
         return posixpath.join("external", section_key, *parts) + anchor
 
-    # Plain markdown path -> convert to link (label from filename)
+    # Plain Markdown file path → convert to proper link with generated label
     if re.search(r"\.(md|markdown)(#[A-Za-z0-9._\-]+)?$", token, flags=re.IGNORECASE):
         new_url = rewrite_href(token, src_root, section_key)
         label = filename_to_label(token)
-        return f"{new_url}"
+        return f"[{label}]({new_url})"
 
-    # Anything else (e.g., a bare section title inside upstream) – return empty to skip
+    # Anything else is not nav content
     return ""
 
 def collect_section_items(src_root: Path, summary_path: Path, section_key: str) -> List[str]:
-    """
-    Read the upstream SUMMARY and return normalized bullet items (each starts with 8 spaces + '* ').
-    We only collect valid list items; headings and non-list lines are ignored.
-    """
+    """Collect normalized bullet items for one section from its upstream SUMMARY."""
     out: List[str] = []
     for raw in summary_path.read_text(encoding="utf-8").splitlines():
         m = LIST_ITEM_RE.match(raw)
         if not m:
-            # ignore headings / blank lines; we define the section header ourselves
-            continue
+            continue  # ignore headings / text; we define the sections ourselves
         token = m.group(2).strip()
         normalized = normalize_item_token(token, src_root, section_key)
         if normalized:
             out.append(f"        * {normalized}")
-    # Ensure at least a placeholder if nothing collected
     if not out:
         out.append("        * *(content not available)*")
     return out
@@ -133,12 +130,12 @@ def parse_triplets(args: Iterable[str]) -> Dict[str, Tuple[Path, Path]]:
 def build_merged_summary(triplets: Dict[str, Tuple[Path, Path]]) -> str:
     lines: List[str] = []
 
-    # Top-level items (no headings)
+    # Top-level: Home
     lines.append("* [Home](index.md)")
 
-    # Knowledge block with 3 subsections
+    # Knowledge with 3 subsections
     lines.append("* Knowledge")
-    for key in ["rulebook", "ram5", "handbook"]:
+    for key in ORDER:
         title = TITLE_MAP[key]
         lines.append(f"    * {title}")
         if key in triplets:
