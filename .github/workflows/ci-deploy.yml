@@ -120,6 +120,10 @@ jobs:
         run: |
           python scripts/sync_external_content.py
 
+      - name: Debug: show generated SUMMARY.md (first 200 lines)
+        run: |
+          sed -n '1,200p' docs/SUMMARY.md
+
       - name: Build MkDocs (strict)
         run: python -m mkdocs build --strict
 
