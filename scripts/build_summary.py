@@ -143,7 +143,7 @@ def build_merged_summary(triplets: Dict[str, Tuple[Path, Path]]) -> str:
 
     # Home
     parts.append("# Home\n")
-    parts.append("- index.md\n")
+    parts.append("* [Home](index.md)\n")
 
     # Knowledge
     parts.append("\n# Knowledge\n")
@@ -158,7 +158,7 @@ def build_merged_summary(triplets: Dict[str, Tuple[Path, Path]]) -> str:
 
     # About
     parts.append("\n# About\n")
-    parts.append("- about.md\n")
+    parts.append("* [About](about.md)\n")
 
     return "".join(parts)
 
