@@ -14,8 +14,6 @@ theme:
     - navigation.sections
     - content.code.copy
   palette:
-    primary: custom
-    accent: custom
       # Palette toggle for automatic mode
     - media: "(prefers-color-scheme)"
       toggle:
