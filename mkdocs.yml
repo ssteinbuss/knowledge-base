@@ -14,8 +14,8 @@ theme:
     - navigation.sections
     - content.code.copy
   palette:
-    primary: custom
-    accent: custom
+    primary: pink
+    accent: pink
 extra_css:
   - assets/styles.css
 plugins:
@@ -33,7 +33,3 @@ markdown_extensions:
   - def_list
 extra:
   generator: false
-  social:
-    - icon: fontawesome/brands/linkedin 
-      link: www.linkedin.com/company/international-data-spaces-association/
-copyright: Copyright &copy; 2016 - 2026 IDSA e.V. All rights reserved.
