@@ -23,7 +23,7 @@ plugins:
       enable_creation_date: true
   - literate-nav:
       nav_file: SUMMARY.md
-# nav: !literate-nav
+nav: !literate-nav
 markdown_extensions:
   - admonition
   - toc:
