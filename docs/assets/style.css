@@ -37,20 +37,20 @@
 /* Light scheme (default) */
 [data-md-color-scheme="default"] {
   /* Header, tabs, top nav, some links */
-  --md-primary-fg-color: var(--kb-brand);
+  --md-primary-fg-color: #0099FF;
 
   /* Hover/interactive accents (buttons, hovered links, scrollbars) */
-  --md-accent-fg-color: var(--kb-brand);
+  --md-accent-fg-color: #0099FF;
 
   /* Content area links */
-  --md-typeset-a-color: var(--kb-brand);
+  --md-typeset-a-color: #0099FF;
 }
 
 /* Dark scheme (slate), keep the same brand */
 [data-md-color-scheme="slate"] {
-  --md-primary-fg-color: var(--kb-brand);
-  --md-accent-fg-color: var(--kb-brand);
-  --md-typeset-a-color: var(--kb-brand);
+  --md-primary-fg-color: #0099FF;
+  --md-accent-fg-color: #0099FF;
+  --md-typeset-a-color: #0099FF;
 }
 
 /* Slightly darker hover state for content links */
