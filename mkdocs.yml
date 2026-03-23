@@ -14,8 +14,8 @@ theme:
     - navigation.sections
     - content.code.copy
   palette:
-    primary: pink
-    accent: pink
+    primary: custom
+    accent: custom
 extra_css:
   - assets/styles.css
 plugins:
