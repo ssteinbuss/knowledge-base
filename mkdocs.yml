@@ -17,9 +17,6 @@ theme:
     - scheme: default
       primary: custom
       accent: custom
-    -scheme: slate
-      primary: custom 
-      accent: custom
       # Palette toggle for automatic mode
     - media: "(prefers-color-scheme)"
       toggle:
