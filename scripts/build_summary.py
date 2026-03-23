@@ -1,33 +1,67 @@
 #!/usr/bin/env python3
 """
-Concatenate and rewrite summary files into docs/SUMMARY.md for mkdocs-literate-nav.
+Concatenate and rewrite upstream summary files into docs/SUMMARY.md for mkdocs-literate-nav.
 
-Rules:
-- Order: rulebook -> ram5 -> handbook
-- Insert H2 headings between summaries
-- Rewrite links so they point to:
-  external/rulebook/...   (for rulebook)
-  external/ram5/...
-  external/handbook/...
-- Preserve anchor fragments (#...).
-- Preserve external URLs (http/https/mailto) unchanged.
-- Handle relative forms: "foo.md", "./foo.md", "../bar/baz.md".
-Algorithm:
-- For each link (path[#frag]?), compute normalized path relative to that source root.
-- New link = f"external/{section}/{normalized_relpath}" + (anchor if any).
-- Only rewrite links that are relative (no scheme and not starting with '#').
-- Write a final SUMMARY.md with top-level sections: Home, Knowledge (with three subsections), About.
+Behavior
+--------
+- Reads the triplets passed as CLI arguments: "key|src_root|summary_path"
+  where:
+    key in {"rulebook", "ram5", "handbook"}
+    src_root is the absolute path to the source folder that will be copied into docs/external/<key>/
+    summary_path is the absolute path to the summary file inside that source tree
+
+- Rewrites relative links inside each upstream summary so they point to the new locations:
+    rulebook  -> external/rulebook/...
+    ram5      -> external/ram5/...
+    handbook  -> external/handbook/...
+
+- Preserves:
+    * anchor fragments (#section)
+    * external URLs (http/https/mailto)
+    * headings and bullet structure
+
+- Emits docs/SUMMARY.md that mkdocs-literate-nav can parse:
+    # Home
+    - index.md
+
+    # Knowledge
+    ## Rulebook
+    <rewritten list>
+
+    ## RAM 5
+    <rewritten list>
+
+    ## Organizational Handbook
+    <rewritten list>
+
+    # About
+    - about.md
+
+Notes
+-----
+- Only links inside upstream SUMMARY files are rewritten (pages themselves may still
+  contain unrewritten relative links, which is fine for the nav; page content linking
+  can be addressed later if required).
+- The Markdown produced must contain *valid link syntax* [Label](rewritten_url), because
+  mkdocs-literate-nav parses the nav from links inside lists and headings.
+
 """
+
+from __future__ import annotations
+
 import os
 import posixpath
 import re
 import sys
 from pathlib import Path
+from typing import Dict, Iterable, List, Tuple
 
+# Repo layout
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCS_DIR = REPO_ROOT / "docs"
 OUT_FILE = DOCS_DIR / "SUMMARY.md"
 
+# Fixed order for sections
 ORDER = ["rulebook", "ram5", "handbook"]
 TITLE_MAP = {
     "rulebook": "Rulebook",
@@ -35,73 +69,131 @@ TITLE_MAP = {
     "handbook": "Organizational Handbook",
 }
 
+# Regex to capture Markdown links: [label](url)
 LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 
-def is_external(link: str) -> bool:
-    return link.startswith("http://") or link.startswith("https://") or link.startswith("mailto:")
+def is_external(href: str) -> bool:
+    """Return True if href is an absolute URL or mailto link."""
+    return href.startswith(("http://", "https://", "mailto:"))
 
-def rewrite(link: str, src_root: Path, section: str) -> str:
-    # Preserve external and anchor-only links
-    if is_external(link) or link.startswith("#"):
-        return link
-    # Split anchor
-    if "#" in link:
-        path_part, anchor = link.split("#", 1)
-        anchor = "#" + anchor
+def normalize_and_join(src_root: Path, rel: str) -> Tuple[Path, str]:
+    """
+    Normalize a (possibly relative) path against src_root and split off an anchor.
+    Returns (absolute_source_path, anchor_suffix) where anchor_suffix includes the leading '#'
+    or '' if not present.
+    """
+    if "#" in rel:
+        path_part, frag = rel.split("#", 1)
+        anchor = "#" + frag
     else:
-        path_part, anchor = link, ""
+        path_part, anchor = rel, ""
 
-    # Normalize relative path against src_root
-    # Use POSIX separators for MkDocs links
+    # Leave empty paths (e.g., just '#heading') to the caller to handle
+    # Resolve against src_root (handles ./, ../, etc.)
     abs_path = (src_root / path_part).resolve()
+    return abs_path, anchor
+
+def rewrite_href(href: str, src_root: Path, section_key: str) -> str:
+    """
+    Rewrite a single href to the new docs/external/<section>/... location if it's relative.
+    Preserve external links and pure anchors.
+    """
+    # Preserve external links and pure anchors
+    if is_external(href) or href.startswith("#"):
+        return href
+
+    abs_path, anchor = normalize_and_join(src_root, href)
+
+    # If the resolved path doesn't live under src_root (e.g., too many ../), keep as-is
     try:
         rel_in_source = abs_path.relative_to(src_root.resolve())
     except ValueError:
-        # If it escapes src_root via .., keep as-is (best-effort)
-        return link
+        return href  # outside of expected tree; do not rewrite
 
-    # Build new path
-    new_path = posixpath.join("external", section, *rel_in_source.parts)
+    # Build posix-style path for MkDocs
+    new_path = posixpath.join("external", section_key, *rel_in_source.parts)
     return new_path + anchor
 
-def process_summary(section: str, src_root: Path, summary_path: Path) -> str:
-    lines = summary_path.read_text(encoding="utf-8").splitlines()
-    out_lines = []
-    for line in lines:
-        def repl(m):
-            text, url = m.group(1), m.group(2)
-            new_url = rewrite(url, src_root, section)
-            return f"[{text}]({new_url})"
-        out_lines.append(LINK_RE.sub(repl, line))
-    return "\n".join(out_lines).strip() + "\n"
+def rewrite_links_in_line(line: str, src_root: Path, section_key: str) -> str:
+    """
+    Rewrite all Markdown links in a line, but **preserve the label + Markdown syntax**.
+    This is critical for mkdocs-literate-nav to parse the navigation.
+    """
+    def _sub(match: re.Match) -> str:
+        label, url = match.group(1), match.group(2)
+        new_url = rewrite_href(url, src_root, section_key)
+        # Keep the Markdown link notation intact
+        return f"[{label}]({new_url})"
+    return LINK_RE.sub(_sub, line)
 
-def main():
-    # Parse args triplets: key|src_root|summary_path
-    args = sys.argv[1:]
-    triplets = {}
+def process_upstream_summary(section_key: str, src_root: Path, summary_path: Path) -> str:
+    """
+    Read the upstream summary file, rewrite links, and return the resulting Markdown string.
+    We do not alter headings or indentation; we only rewrite link destinations.
+    """
+    text = summary_path.read_text(encoding="utf-8")
+    out_lines: List[str] = []
+    for raw_line in text.splitlines():
+        out_lines.append(rewrite_links_in_line(raw_line, src_root, section_key))
+    # Ensure trailing newline so concatenations have spacing
+    return "\n".join(out_lines).rstrip() + "\n"
+
+def parse_triplets(args: Iterable[str]) -> Dict[str, Tuple[Path, Path]]:
+    """
+    Parse CLI args of the form key|src_root|summary_path into a dict:
+        { key: (src_root_path, summary_path) }
+    """
+    result: Dict[str, Tuple[Path, Path]] = {}
     for a in args:
-        key, src_dir, summ = a.split("|", 2)
-        triplets[key] = (Path(src_dir), Path(summ))
+        try:
+            key, src_dir, summ = a.split("|", 2)
+        except ValueError:
+            raise SystemExit(
+                f"Invalid argument '{a}'. Expected format: key|src_root|summary_path"
+            )
+        result[key] = (Path(src_dir), Path(summ))
+    return result
 
-    # Compose OUTPUT
-    parts = []
+def build_merged_summary(triplets: Dict[str, Tuple[Path, Path]]) -> str:
+    """
+    Compose the final SUMMARY.md content using the fixed section order.
+    Missing sections are kept with a placeholder so the layout is deterministic.
+    """
+    parts: List[str] = []
+
+    # Home
     parts.append("# Home\n")
-    parts.append("- [Home](index.md)\n")
+    parts.append("- index.md\n")
 
+    # Knowledge sections
     parts.append("\n# Knowledge\n")
     for key in ORDER:
-        if key not in triplets:
-            # still include empty header for deterministic nav
-            parts.append(f"\n## {TITLE_MAP[key]}\n\n- *(content not available)*\n")
-            continue
-        src_root, summ = triplets[key]
-        parts.append(f"\n## {TITLE_MAP[key]}\n\n")
-        parts.append(process_summary(key, src_root, summ))
+        title = TITLE_MAP[key]
+        parts.append(f"\n## {title}\n")
+        if key in triplets:
+            src_root, summ = triplets[key]
+            parts.append(process_upstream_summary(key, src_root, summ))
+        else:
+            parts.append("\n- *(content not available)*\n")
 
+    # About
     parts.append("\n# About\n")
-    parts.append("- [About](about.md)\n")
+    parts.append("- about.md\n")
 
-    OUT_FILE.write_text("".join(parts), encoding="utf-8")
+    return "".join(parts)
+
+def main() -> None:
+    # Ensure docs directory exists
+    DOCS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Parse provided triplets
+    triplets = parse_triplets(sys.argv[1:])
+
+    # Build merged content
+    merged = build_merged_summary(triplets)
+
+    # Write output
+    OUT_FILE.write_text(merged, encoding="utf-8")
     print(f"[INFO] Wrote merged SUMMARY to {OUT_FILE}")
 
 if __name__ == "__main__":
