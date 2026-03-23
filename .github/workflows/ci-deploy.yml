@@ -104,6 +104,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install --upgrade --no-cache-dir -r requirements.txt
 
+      - name: Verify mkdocs + literate-nav are installed in this env
+        run: |
+          which python
+          python --version
+          python -m pip show mkdocs mkdocs-material mkdocs-literate-nav
+          python - <<'PY'
+      import sys
+      print("PYTHON:", sys.executable)
+      import mkdocs
+      print("MKDOCS:", mkdocs.__version__)
+      try:
+        import mkdocs_literate_nav
+        print("LITERATE-NAV:", mkdocs_literate_nav.__version__)
+      except Exception as e:
+        print("LITERATE-NAV IMPORT FAILED:", e)
+        sys.exit(1)
+      PY
+
       - name: Assemble external content & build merged SUMMARY
         env:
           CI_EVENT_NAME: ${{ github.event_name }}
@@ -111,7 +129,7 @@ jobs:
           python scripts/sync_external_content.py
 
       - name: Build MkDocs (strict)
-        run: mkdocs build --strict
+        run: python -m mkdocs build --strict
 
       - name: Upload artifact to Pages
         uses: actions/upload-pages-artifact@v3
