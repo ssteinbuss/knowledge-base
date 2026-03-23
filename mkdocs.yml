@@ -5,6 +5,8 @@ repo_url: https://github.com/ssteinbuss/knowledge-base
 repo_name: knowledge-base
 theme:
   name: material
+  favicon: assets/favicon.png
+  logo: assets/IDSA-logo_2.png
   custom_dir: overrides
   features:
     - navigation.tabs
@@ -32,5 +34,3 @@ markdown_extensions:
   - def_list
 extra:
   generator: false
-theme:
-  favicon: assets/favicon.png
