@@ -1,67 +1,53 @@
 #!/usr/bin/env python3
 """
-Concatenate and rewrite upstream summary files into docs/SUMMARY.md for mkdocs-literate-nav.
+Build a merged docs/SUMMARY.md for mkdocs-literate-nav from three upstream summaries.
 
-Behavior
+Features
 --------
-- Reads the triplets passed as CLI arguments: "key|src_root|summary_path"
-  where:
-    key in {"rulebook", "ram5", "handbook"}
-    src_root is the absolute path to the source folder that will be copied into docs/external/<key>/
-    summary_path is the absolute path to the summary file inside that source tree
-
-- Rewrites relative links inside each upstream summary so they point to the new locations:
-    rulebook  -> external/rulebook/...
-    ram5      -> external/ram5/...
-    handbook  -> external/handbook/...
-
-- Preserves:
-    * anchor fragments (#section)
-    * external URLs (http/https/mailto)
-    * headings and bullet structure
-
-- Emits docs/SUMMARY.md that mkdocs-literate-nav can parse:
+- Fixed order: Rulebook -> RAM 5 -> Organizational Handbook
+- Rewrites relative links from each upstream summary so they point to:
+    external/rulebook/...
+    external/ram5/...
+    external/handbook/...
+- Preserves anchor fragments (#...) and external URLs
+- Keeps Markdown link syntax [label](url) intact for literate-nav parsing
+- Converts plain-path bullets like "- about.md" into links with auto labels
+- Rewrites wildcard bullets (e.g., "- *.md", "- subdir/*.md") to the new prefix + wildcard
+- Writes a fully structured docs/SUMMARY.md:
     # Home
-    - index.md
-
+    - [Home](index.md)
     # Knowledge
     ## Rulebook
-    <rewritten list>
-
+    ...
     ## RAM 5
-    <rewritten list>
-
+    ...
     ## Organizational Handbook
-    <rewritten list>
-
+    ...
     # About
-    - about.md
+    - [About](about.md)
 
-Notes
------
-- Only links inside upstream SUMMARY files are rewritten (pages themselves may still
-  contain unrewritten relative links, which is fine for the nav; page content linking
-  can be addressed later if required).
-- The Markdown produced must contain *valid link syntax* [Label](rewritten_url), because
-  mkdocs-literate-nav parses the nav from links inside lists and headings.
-
+Usage (called by scripts/sync_external_content.py)
+--------------------------------------------------
+python scripts/build_summary.py \
+  rulebook|/abs/src/rulebook/documentation|/abs/src/rulebook/documentation/SUMMARY.md \
+  ram5|/abs/src/ram5/docs|/abs/src/ram5/docs/summary.md \
+  handbook|/abs/src/handbook/OrganizationalHandbook|/abs/src/handbook/OrganizationalHandbook/summary.md
 """
 
 from __future__ import annotations
 
-import os
 import posixpath
 import re
 import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
-# Repo layout
+# Repository layout
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCS_DIR = REPO_ROOT / "docs"
 OUT_FILE = DOCS_DIR / "SUMMARY.md"
 
-# Fixed order for sections
+# Section order and titles
 ORDER = ["rulebook", "ram5", "handbook"]
 TITLE_MAP = {
     "rulebook": "Rulebook",
@@ -69,79 +55,125 @@ TITLE_MAP = {
     "handbook": "Organizational Handbook",
 }
 
-# Regex to capture Markdown links: [label](url)
-LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+# Regexes
+MD_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")  # [label](url)
+LIST_ITEM_RE = re.compile(r"^(\s*[-*]\s+)(.+?)\s*$")  # captures indent/marker + content
+HAS_WILDCARD_RE = re.compile(r"[*]")  # wildcard anywhere in the token
 
 def is_external(href: str) -> bool:
-    """Return True if href is an absolute URL or mailto link."""
     return href.startswith(("http://", "https://", "mailto:"))
 
-def normalize_and_join(src_root: Path, rel: str) -> Tuple[Path, str]:
-    """
-    Normalize a (possibly relative) path against src_root and split off an anchor.
-    Returns (absolute_source_path, anchor_suffix) where anchor_suffix includes the leading '#'
-    or '' if not present.
-    """
-    if "#" in rel:
-        path_part, frag = rel.split("#", 1)
-        anchor = "#" + frag
-    else:
-        path_part, anchor = rel, ""
-
-    # Leave empty paths (e.g., just '#heading') to the caller to handle
-    # Resolve against src_root (handles ./, ../, etc.)
-    abs_path = (src_root / path_part).resolve()
-    return abs_path, anchor
+def split_anchor(path: str) -> Tuple[str, str]:
+    """Split an href into (path_part, anchor_with_hash or '')."""
+    if "#" in path:
+        p, frag = path.split("#", 1)
+        return p, "#" + frag
+    return path, ""
 
 def rewrite_href(href: str, src_root: Path, section_key: str) -> str:
     """
-    Rewrite a single href to the new docs/external/<section>/... location if it's relative.
-    Preserve external links and pure anchors.
+    Rewrite a single href to the target docs/external/<section>/... location if it's relative.
+    Preserve pure anchors and external URLs.
     """
-    # Preserve external links and pure anchors
-    if is_external(href) or href.startswith("#"):
+    if href.startswith("#") or is_external(href):
         return href
 
-    abs_path, anchor = normalize_and_join(src_root, href)
+    path_part, anchor = split_anchor(href)
+    abs_path = (src_root / path_part).resolve()
 
-    # If the resolved path doesn't live under src_root (e.g., too many ../), keep as-is
     try:
         rel_in_source = abs_path.relative_to(src_root.resolve())
     except ValueError:
-        return href  # outside of expected tree; do not rewrite
+        # If it escapes src_root via "..", keep as-is
+        return href
 
-    # Build posix-style path for MkDocs
     new_path = posixpath.join("external", section_key, *rel_in_source.parts)
     return new_path + anchor
 
+def filename_to_label(path: str) -> str:
+    """
+    Create a readable label from a file path:
+    - take the final path segment (without extension and anchor)
+    - replace '-', '_' with spaces and title-case it
+    """
+    p, _anchor = split_anchor(path)
+    name = Path(p).name
+    stem = Path(name).stem  # drop extension
+    # common names -> friendlier labels
+    if stem.lower() in {"readme", "index"}:
+        stem = Path(p).parent.name or "Home"
+    label = stem.replace("-", " ").replace("_", " ").strip()
+    # Title-case but keep all-caps if already uppercase (e.g., RAM)
+    label = " ".join(w if w.isupper() else w.capitalize() for w in label.split())
+    return label or "Untitled"
+
 def rewrite_links_in_line(line: str, src_root: Path, section_key: str) -> str:
     """
-    Rewrite all Markdown links in a line, but **preserve the label + Markdown syntax**.
-    This is critical for mkdocs-literate-nav to parse the navigation.
+    - Rewrites Markdown links, preserving [label](url) structure.
+    - Also normalizes plain-path list items into proper links or wildcard items.
     """
-    def _sub(match: re.Match) -> str:
-        label, url = match.group(1), match.group(2)
+
+    # 1) Rewrite any explicit Markdown links, preserving the label
+    def _sub(m: re.Match) -> str:
+        label, url = m.group(1), m.group(2)
         new_url = rewrite_href(url, src_root, section_key)
-        # Keep the Markdown link notation intact
         return f"[{label}]({new_url})"
-    return LINK_RE.sub(_sub, line)
+    line_after_links = MD_LINK_RE.sub(_sub, line)
+
+    # 2) Handle list items that are just plain paths or contain wildcards
+    m = LIST_ITEM_RE.match(line_after_links)
+    if not m:
+        return line_after_links  # headings, blank lines, etc. pass through
+
+    lead, content = m.group(1), m.group(2)
+
+    # If the content already contains a Markdown link after step 1, keep it
+    if MD_LINK_RE.search(content):
+        return line_after_links
+
+    # Wildcards are allowed by literate-nav inside list items (not links)
+    # e.g., "*.md", "subdir/*.md" -> rewrite the path prefix to external/<section>/...
+    if HAS_WILDCARD_RE.search(content):
+        # Attempt to rewrite wildcard path if it looks relative
+        # For safety, only rewrite if it doesn't start with http(s) or "#"
+        if not is_external(content) and not content.startswith("#"):
+            # Split out any leading path before the wildcard; we join under external/<section>
+            # Examples:
+            #   "*.md"           -> external/<section>/*.md
+            #   "sub/*.md"       -> external/<section>/sub/*.md
+            #   "sub/deep/*.md"  -> external/<section>/sub/deep/*.md
+            # We don't resolve actual files; literate-nav will expand the pattern.
+            prefix, anchor = split_anchor(content)  # anchor unlikely with wildcard but safe
+            # Normalize separators in 'prefix'
+            parts = Path(prefix).parts
+            new_token = posixpath.join("external", section_key, *parts) + anchor
+            return f"{lead}{new_token}"
+        return line_after_links
+
+    # If content looks like a relative Markdown file, convert it to a link with a generated label
+    # Recognize common Markdown extensions + optional '#fragment'
+    if re.search(r"\.(md|markdown)(#[A-Za-z0-9._\-]+)?$", content, flags=re.IGNORECASE):
+        new_url = rewrite_href(content, src_root, section_key)
+        label = filename_to_label(content)
+        return f"{lead}[{label}]({new_url})"
+
+    # Otherwise, leave as-is (could be a pure section title without content on this line)
+    return line_after_links
 
 def process_upstream_summary(section_key: str, src_root: Path, summary_path: Path) -> str:
     """
-    Read the upstream summary file, rewrite links, and return the resulting Markdown string.
-    We do not alter headings or indentation; we only rewrite link destinations.
+    Read the upstream summary, rewrite links and list items, and return Markdown.
     """
     text = summary_path.read_text(encoding="utf-8")
     out_lines: List[str] = []
     for raw_line in text.splitlines():
         out_lines.append(rewrite_links_in_line(raw_line, src_root, section_key))
-    # Ensure trailing newline so concatenations have spacing
+    # Ensure single trailing newline
     return "\n".join(out_lines).rstrip() + "\n"
 
 def parse_triplets(args: Iterable[str]) -> Dict[str, Tuple[Path, Path]]:
     """
-    Parse CLI args of the form key|src_root|summary_path into a dict:
-        { key: (src_root_path, summary_path) }
+    Parse CLI args: "key|src_root|summary_path" into { key: (src_root_path, summary_path) }.
     """
     result: Dict[str, Tuple[Path, Path]] = {}
     for a in args:
@@ -156,14 +188,13 @@ def parse_triplets(args: Iterable[str]) -> Dict[str, Tuple[Path, Path]]:
 
 def build_merged_summary(triplets: Dict[str, Tuple[Path, Path]]) -> str:
     """
-    Compose the final SUMMARY.md content using the fixed section order.
-    Missing sections are kept with a placeholder so the layout is deterministic.
+    Compose the final SUMMARY.md content in the fixed order.
     """
     parts: List[str] = []
 
     # Home
     parts.append("# Home\n")
-    parts.append("- index.md\n")
+    parts.append("- [Home](index.md)\n")
 
     # Knowledge sections
     parts.append("\n# Knowledge\n")
@@ -174,25 +205,18 @@ def build_merged_summary(triplets: Dict[str, Tuple[Path, Path]]) -> str:
             src_root, summ = triplets[key]
             parts.append(process_upstream_summary(key, src_root, summ))
         else:
-            parts.append("\n- *(content not available)*\n")
+            parts.append("- *(content not available)*\n")
 
     # About
     parts.append("\n# About\n")
-    parts.append("- about.md\n")
+    parts.append("- [About](about.md)\n")
 
     return "".join(parts)
 
 def main() -> None:
-    # Ensure docs directory exists
     DOCS_DIR.mkdir(parents=True, exist_ok=True)
-
-    # Parse provided triplets
     triplets = parse_triplets(sys.argv[1:])
-
-    # Build merged content
     merged = build_merged_summary(triplets)
-
-    # Write output
     OUT_FILE.write_text(merged, encoding="utf-8")
     print(f"[INFO] Wrote merged SUMMARY to {OUT_FILE}")
 
