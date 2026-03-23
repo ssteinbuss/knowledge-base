@@ -15,8 +15,8 @@ theme:
     - content.code.copy
   palette:
     - scheme: default
-      primary: indigo
-      accent: indigo
+      primary: #0099FF
+      accent: #0099FF
 extra_css:
   - assets/styles.css
 plugins:
