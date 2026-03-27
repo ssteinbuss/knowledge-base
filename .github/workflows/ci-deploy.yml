@@ -91,13 +91,13 @@ jobs:
           path: _sources/ram5
           token: ${{ secrets.SOURCE_REPOS_PAT }}
 
-      - name: Checkout Members Area (Handbook)
+      - name: Checkout Glossary
         if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
         uses: actions/checkout@v4
         with:
-          repository: ssteinbuss/members-area
+          repository: ssteinbuss/Glossary
           ref: main
-          path: _sources/handbook
+          path: _sources/glossary
           token: ${{ secrets.SOURCE_REPOS_PAT }}
 
       - name: Setup Python
