@@ -8,11 +8,11 @@ Requirements:
 - External sources are checked out by CI into:
   _sources/rulebook/ (folder to copy: documentation/)
   _sources/ram5/     (folder to copy: docs/)
-  _sources/handbook/ (folder to copy: OrganizationalHandbook/)
+  _sources/glossary/ (folder to copy: docs/)
 - Generates:
   docs/external/rulebook/
   docs/external/ram5/
-  docs/external/handbook/
+  docs/external/glossary/
   docs/SUMMARY.md  (via build_summary.py)
 """
 import os
@@ -34,10 +34,10 @@ SOURCES = {
         "summary_rel": "SUMMARY.md",
         "dst": EXTERNAL_DIR / "ram5",
     },
-    "handbook": {
-        "src_root": REPO_ROOT / "_sources" / "handbook" / "OrganizationalHandbook",
+    "glossary": {
+        "src_root": REPO_ROOT / "_sources" / "glossary" / "docs",
         "summary_rel": "SUMMARY.md",
-        "dst": EXTERNAL_DIR / "handbook",
+        "dst": EXTERNAL_DIR / "glossary",
     },
 }
 

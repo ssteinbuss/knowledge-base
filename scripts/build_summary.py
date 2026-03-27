@@ -10,8 +10,8 @@ Structure produced:
         * *.md
     * RAM 5
         * [Label](external/ram5/...)
-    * Organizational Handbook
-        * [Label](external/handbook/...)
+    * Glossary
+        * [Label](external/glossary/...)
 * [About](about.md)
 """
 
@@ -27,11 +27,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCS_DIR = REPO_ROOT / "docs"
 OUT_FILE = DOCS_DIR / "SUMMARY.md"
 
-ORDER = ["rulebook", "ram5", "handbook"]
+ORDER = ["rulebook", "ram5", "glossary"]
 TITLE_MAP = {
     "rulebook": "Rulebook",
     "ram5": "RAM 5",
-    "handbook": "Organizational Handbook",
+    "glossary": "Glossary",
 }
 
 # Match Markdown links: [label](url)
