@@ -1,6 +1,6 @@
 # Standards and external sources
 
-## Specifications:
+## Specifications
 
 * [Dataspace Protocol](https://eclipse-dataspace-protocol-base.github.io/DataspaceProtocol/2025-1-err1/)
 
