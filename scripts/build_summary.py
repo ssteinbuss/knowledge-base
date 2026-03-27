@@ -133,6 +133,9 @@ def build_merged_summary(triplets: Dict[str, Tuple[Path, Path]]) -> str:
     # Top-level: Home
     lines.append("* [Home](index.md)")
 
+    # Top-level: dataspace
+    lines.append("* [What is a data space?](dataspace.md)")
+
     # Knowledge with 3 subsections
     lines.append("* Knowledge")
     for key in ORDER:
@@ -144,6 +147,9 @@ def build_merged_summary(triplets: Dict[str, Tuple[Path, Path]]) -> str:
         else:
             lines.append("        * *(content not available)*")
 
+    # Standards
+    lines.append("* [Standards and specifications](standards.md)")
+    
     # About
     lines.append("* [About](about.md)")
 
