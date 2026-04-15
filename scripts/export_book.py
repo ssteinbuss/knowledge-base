@@ -6,42 +6,65 @@ import re
 from pathlib import Path
 from datetime import datetime, timezone
 
-# Match Markdown links: [label](path)
+# Capture Markdown links: [Label](href)
 MD_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
-# Match list items like: * path.md
-PLAIN_ITEM_RE = re.compile(r"^\s*[*-]\s+(.+)$")
+# Capture list items with optional indentation: * Something OR - Something
+LIST_ITEM_RE = re.compile(r"^(\s*[*-]\s+)(.+?)\s*$")
 
-def extract_md_paths_from_summary(summary_text: str) -> list[str]:
-    """Extract .md paths from a literate-nav SUMMARY list, preserving order and de-duplicating."""
-    candidates: list[str] = []
+def is_md_path(href: str) -> bool:
+    href = href.strip()
+    path = href.split("#", 1)[0]
+    return path.lower().endswith(".md")
+
+def normalize_href(href: str) -> str:
+    """Drop anchor portion for file resolution; keep file path only."""
+    return href.split("#", 1)[0].strip()
+
+def extract_nav_entries(summary_text: str) -> list[tuple[int, str, str]]:
+    """
+    Extract nav entries from literate-nav style SUMMARY.md as:
+      (indent_level, label, href_md)
+
+    - Only keeps entries that point to a .md file.
+    - Indent level is computed from leading whitespace to allow grouping.
+    """
+    entries: list[tuple[int, str, str]] = []
 
     for line in summary_text.splitlines():
-        # Any explicit markdown link
-        for m in MD_LINK_RE.finditer(line):
-            href = m.group(2).strip()
-            path = href.split("#", 1)[0]
-            if path.lower().endswith(".md"):
-                candidates.append(path)
+        m = LIST_ITEM_RE.match(line)
+        if not m:
+            continue
 
-        # Path-only items (in case contributors use them)
-        m2 = PLAIN_ITEM_RE.match(line)
-        if m2:
-            token = m2.group(1).strip()
-            token_path = token.split("#", 1)[0]
-            if token_path.lower().endswith(".md"):
-                candidates.append(token_path)
+        lead = m.group(1)
+        content = m.group(2).strip()
+        indent = len(lead) - len(lead.lstrip(" "))
 
-    # De-dup preserving order
-    seen = set()
-    out: list[str] = []
-    for p in candidates:
-        if p not in seen:
-            seen.add(p)
-            out.append(p)
+        # If line contains a markdown link, use its label + href
+        lm = MD_LINK_RE.search(content)
+        if lm:
+            label, href = lm.group(1).strip(), lm.group(2).strip()
+            if is_md_path(href):
+                entries.append((indent, label, normalize_href(href)))
+            continue
+
+        # If line is a plain md path, create a label from filename
+        token = content.split("#", 1)[0].strip()
+        if token.lower().endswith(".md"):
+            label = Path(token).stem.replace("-", " ").replace("_", " ").strip().title()
+            if label.lower() in {"index", "readme"}:
+                label = "Overview"
+            entries.append((indent, label, token))
+
+    # De-duplicate by href while preserving order
+    seen: set[str] = set()
+    out: list[tuple[int, str, str]] = []
+    for indent, label, href in entries:
+        if href not in seen:
+            seen.add(href)
+            out.append((indent, label, href))
     return out
 
 def list_all_md_files(docs_dir: Path) -> list[Path]:
-    """All markdown files under docs, sorted for stable append order."""
     files = [p for p in docs_dir.rglob("*.md") if p.is_file()]
     return sorted(files, key=lambda p: p.as_posix().lower())
 
@@ -52,6 +75,8 @@ def main() -> None:
     ap.add_argument("--out", default="exports/knowledge-base.md")
     ap.add_argument("--title", default="Knowledge Base")
     ap.add_argument("--version", required=True)
+    ap.add_argument("--append-unlisted", action="store_true",
+                    help="Append markdown files not referenced in SUMMARY (scope=ALL).")
     args = ap.parse_args()
 
     docs_dir = Path(args.docs_dir).resolve()
@@ -60,33 +85,40 @@ def main() -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     summary_text = summary_path.read_text(encoding="utf-8", errors="ignore")
-    ordered_rel_paths = extract_md_paths_from_summary(summary_text)
+    nav_entries = extract_nav_entries(summary_text)
 
-    ordered_files: list[Path] = []
-    seen: set[Path] = set()
+    # Resolve nav files in order
+    nav_files: list[tuple[str, Path]] = []
+    seen_paths: set[Path] = set()
 
-    # 1) Add files in SUMMARY order
-    for rel in ordered_rel_paths:
+    for _indent, label, rel in nav_entries:
         p = (docs_dir / rel).resolve()
-        if p.exists() and p.is_file() and p.suffix.lower() == ".md":
-            if p not in seen:
-                ordered_files.append(p)
-                seen.add(p)
+        if p.exists() and p.is_file():
+            # Skip SUMMARY files (not content)
+            rel_lower = p.relative_to(docs_dir).as_posix().lower()
+            if rel_lower == "summary.md":
+                continue
+            if rel_lower.startswith("external/") and rel_lower.endswith("/summary.md"):
+                continue
+            if p not in seen_paths:
+                nav_files.append((label, p))
+                seen_paths.add(p)
 
-    # 2) Add remaining markdown files (scope = ALL)
-    for p in list_all_md_files(docs_dir):
-        # Skip the nav file itself and any external summary files
-        rel = p.relative_to(docs_dir).as_posix().lower()
-        if rel == "summary.md":
-            continue
-        if rel.startswith("external/") and rel.endswith("/summary.md"):
-            continue
-        if p not in seen:
-            ordered_files.append(p)
-            seen.add(p)
+    # Optional: scope=ALL → append remaining .md files not listed in SUMMARY
+    extras: list[Path] = []
+    if args.append_unlisted:
+        for p in list_all_md_files(docs_dir):
+            rel_lower = p.relative_to(docs_dir).as_posix().lower()
+            if rel_lower == "summary.md":
+                continue
+            if rel_lower.startswith("external/") and rel_lower.endswith("/summary.md"):
+                continue
+            if p not in seen_paths:
+                extras.append(p)
+                seen_paths.add(p)
 
-    # 3) Write a single book markdown
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
     parts: list[str] = []
     parts.append("---")
     parts.append(f"title: \"{args.title}\"")
@@ -99,15 +131,43 @@ def main() -> None:
     parts.append(f"**Version:** {args.version}  ")
     parts.append(f"**Generated:** {now}")
     parts.append("")
-    parts.append("---")
+    parts.append("\\newpage")
     parts.append("")
 
-    for p in ordered_files:
-        rel = p.relative_to(docs_dir).as_posix()
-        # Section marker for readability in exports
-        parts.append(f"\n\n# {rel}\n")
+    # Add nav-listed pages with human-friendly headings
+    for label, p in nav_files:
+        parts.append(f"# {label}")
+        parts.append("")
         parts.append(p.read_text(encoding="utf-8", errors="ignore"))
-        parts.append("\n\n---\n")
+        parts.append("")
+        parts.append("\\newpage")
+        parts.append("")
+
+    # Append any unlisted pages without file-path headings
+    if extras:
+        parts.append("# Appendix")
+        parts.append("")
+        parts.append("The following pages exist in the repository but are not listed in the navigation summary.")
+        parts.append("")
+        parts.append("\\newpage")
+        parts.append("")
+
+        for p in extras:
+            # Use the first heading inside the file if present; fallback to stem
+            text = p.read_text(encoding="utf-8", errors="ignore")
+            first_h1 = None
+            for line in text.splitlines():
+                if line.startswith("# "):
+                    first_h1 = line[2:].strip()
+                    break
+            label = first_h1 or p.stem.replace("-", " ").replace("_", " ").strip().title()
+
+            parts.append(f"# {label}")
+            parts.append("")
+            parts.append(text)
+            parts.append("")
+            parts.append("\\newpage")
+            parts.append("")
 
     out_path.write_text("\n".join(parts), encoding="utf-8")
     print(f"[INFO] Wrote export book: {out_path}")
