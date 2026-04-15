@@ -143,6 +143,15 @@ jobs:
             --out exports/knowledge-base.md \
             --title "Knowledge Base" \
             --version "${{ steps.exportver.outputs.version }}"
+      
+      - name: Stage export media and rewrite image links
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          python scripts/export_stage_media.py \
+            --docs-dir docs \
+            --book exports/knowledge-base.md \
+            --out-book exports/knowledge-base.with-media.md \
+            --media-dir exports/media
 
       - name: Generate PDF cover page
         if: ${{ github.ref == 'refs/heads/main' }}
@@ -169,13 +178,13 @@ jobs:
         uses: docker://pandoc/core:3.9
         with:
           args: >-
-            exports/knowledge-base.md
+            exports/knowledge-base.with-media.md
             --from=markdown
             --standalone
             --toc
             --number-sections
             --reference-doc=assets/templates/reference.docx
-            --resource-path=docs:docs/external:docs/assets
+            --resource-path=exports:exports/media:docs:docs/external:docs/assets
             --output=exports/knowledge-base-${{ steps.exportver.outputs.version }}.docx
 
       - name: Export PDF (Pandoc + LaTeX)
@@ -184,7 +193,7 @@ jobs:
         with:
           args: >-
             exports/cover.md
-            exports/knowledge-base.md
+            exports/knowledge-base.with-media.md
             --from=markdown
             --standalone
             --toc
@@ -193,8 +202,15 @@ jobs:
             -V papersize=a4
             -V geometry:margin=2.5cm
             -V fontsize=11pt
-            --resource-path=docs:docs/external:docs/assets
+            --resource-path=exports:exports/media:docs:docs/external:docs/assets
             --output=exports/knowledge-base-${{ steps.exportver.outputs.version }}.pdf
+
+      - name: Debug count staged images and sample listing
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          ls -la exports/media | head -n 50
+          echo "Staged images:" $(ls -1 exports/media | wc -l)
+          grep -R "!\[" -n exports/knowledge-base.with-media.md | head -n 20
 
       - name: Publish exports into site downloads (latest + versioned)
         if: ${{ github.ref == 'refs/heads/main' }}
