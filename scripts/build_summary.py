@@ -150,6 +150,9 @@ def build_merged_summary(triplets: Dict[str, Tuple[Path, Path]]) -> str:
     # Standards
     lines.append("* [Standards and specifications](standards.md)")
     
+    # Downloads
+    lines.append("* [Downloads](downloads/index.md)")
+
     # About
     lines.append("* [About](about.md)")
 
