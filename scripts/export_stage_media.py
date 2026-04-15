@@ -38,7 +38,7 @@ IMG_RE = re.compile(r"!\[([^\]]*)\]\((\S+?)(?:\s+\"[^\"]*\")?\)")
 # e.g. <!-- KB-SOURCE: external/rulebook/chapter1.md -->
 SRC_MARKER_RE = re.compile(r"^\s*<!--\s*KB-SOURCE:\s*(.+?)\s*-->\s*$")
 
-IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".tif", ".tiff", ".bmp", ".jfif"}
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".tif", ".tiff", ".bmp"}
 
 def safe_name(path: str) -> str:
     """Normalize a filename for staging (strip dirs, decode URL-encoding, keep extension)."""
